@@ -38,6 +38,7 @@ class BMI160Sensor : public Sensor {
         void motionLoop() override final;
         void startCalibration(int calibrationType) override final;
         void getScaledValues(float Gxyz[3], float Axyz[3]);
+        virtual void update() override;
         float getTemperature();
     private:
         BMI160 imu {};

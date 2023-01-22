@@ -24,41 +24,52 @@
 #ifndef SLIMEVR_SENSORMANAGER
 #define SLIMEVR_SENSORMANAGER
 
+#define BNO080_I2C_ADDRESS 0x4B
+#define LSM9DS1_I2C_ADDRESS 0x6B
+#define SENSOR_TYPE_IMU 0x01
+#define ROTATION_270 0x03
+
 #include "globals.h"
 #include "sensor.h"
 #include "EmptySensor.h"
 #include "logging/Logger.h"
+#include "TCA9548A.h"
 
 namespace SlimeVR
 {
-    namespace Sensors
+namespace Sensors
+{
+    std::vector<uint8_t> scanI2CAddress();
+    class SensorManager
     {
-        class SensorManager
-        {
-        public:
-            SensorManager()
-                : m_Logger(SlimeVR::Logging::Logger("SensorManager")), m_Sensor1(new EmptySensor(0)), m_Sensor2(new EmptySensor(0)) {}
-            ~SensorManager()
-            {
-                delete m_Sensor1;
-                delete m_Sensor2;
-            }
-
-            void setup();
-            void postSetup();
-
-            void update();
-
-            Sensor *getFirst() { return m_Sensor1; };
-            Sensor *getSecond() { return m_Sensor2; };
-
-        private:
-            SlimeVR::Logging::Logger m_Logger;
-
-            Sensor *m_Sensor1;
-            Sensor *m_Sensor2;
-        };
+    public:
+    SensorManager()
+    : m_Logger(SlimeVR::Logging::Logger("SensorManager")), m_multiplexer(new TCA9548A(0x70)) {
+    for (int i = 0; i < 8; ++i) {
+    m_Sensors[i] = new EmptySensor(i);
     }
 }
+~SensorManager()
+{
+    for (int i = 0; i < 8; ++i) {
+    delete m_Sensors[i];
+    }
+    delete m_multiplexer;
+}
+        void setup();
+        void postSetup();
+        void update();
 
-#endif // SLIMEVR_SENSORFACTORY_H_
+        Sensor *getSensor(int index) { return m_Sensors[index]; };
+
+    private:
+        SlimeVR::Logging::Logger m_Logger;
+        TCA9548A *m_multiplexer;
+
+        Sensor *m_Sensors[8];
+    };
+}
+
+}
+
+#endif // SLIMEVR_SENSORMANAGER_H

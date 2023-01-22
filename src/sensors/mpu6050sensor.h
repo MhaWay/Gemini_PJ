@@ -34,6 +34,7 @@ public:
     ~MPU6050Sensor(){};
     void motionSetup() override final;
     void motionLoop() override final;
+    virtual void update() override;
     void startCalibration(int calibrationType) override final;
 
 private:

@@ -37,7 +37,7 @@ public:
     void postSetup() override {
         lastData = millis();
     }
-
+    virtual void update() override;
     void motionLoop() override final;
     void sendData() override final;
     void startCalibration(int calibrationType) override final;

@@ -18,6 +18,21 @@ uint8_t portExclude[] = {LED_PIN};
 
 namespace I2CSCAN
 {
+std::vector<uint8_t> scanI2CAddresses() {
+    byte error, address;
+    std::vector<uint8_t> addresses;
+    for (address = 1; address < 127; address++) {
+        Wire.beginTransmission(address);
+        error = Wire.endTransmission();
+        if (error == 0) {
+            addresses.push_back(address);
+        }
+    }
+    if (addresses.size() == 0) {
+        return {};
+    }
+    return addresses;
+}
 
     uint8_t pickDevice(uint8_t addr1, uint8_t addr2, bool scanIfNotFound) {
         if(I2CSCAN::isI2CExist(addr1))

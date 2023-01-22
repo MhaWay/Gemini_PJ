@@ -39,6 +39,7 @@ namespace SlimeVR
             void motionSetup() override final{};
             void motionLoop() override final{};
             void sendData() override final{};
+            virtual void update() override;
             void startCalibration(int calibrationType) override final{};
         };
     }
