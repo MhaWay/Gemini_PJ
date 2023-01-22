@@ -34,6 +34,7 @@
 #include "status/StatusManager.h"
 #include "batterymonitor.h"
 #include "logging/Logger.h"
+#include "TCA9548A.h" // include la libreria TCA9548A
 
 SlimeVR::Logging::Logger logger("SlimeVR");
 SlimeVR::Sensors::SensorManager sensorManager;
@@ -48,6 +49,7 @@ unsigned long loopTime = 0;
 unsigned long lastStatePrint = 0;
 bool secondImuActive = false;
 BatteryMonitor battery;
+TCA9548A multiplexer; // Crea un'istanza del multiplexer TCA9548A
 
 void setup()
 {
@@ -78,65 +80,81 @@ void setup()
     // join I2C bus
 
 #if ESP32
-    // For some unknown reason the I2C seem to be open on ESP32-C3 by default. Let's just close it before opening it again. (The ESP32-C3 only has 1 I2C.)
-    Wire.end();
+// For some unknown reason the I2C seem to be open on ESP32-C3 by default. Let's just close it before opening it again. (The ESP32-C3 only has 1 I2C.)
+Wire.end();
 #endif
 
-    // using `static_cast` here seems to be better, because there are 2 similar function signatures
-    Wire.begin(static_cast<int>(PIN_IMU_SDA), static_cast<int>(PIN_IMU_SCL)); 
+// using `static_cast` here seems to be better, because there are 2 similar function signatures
+Wire.begin(static_cast<int>(PIN_IMU_SDA), static_cast<int>(PIN_IMU_SCL));
+
+// Here we include the TCA9548A library and create an object for it
+#include <TCA9548A.h>
+TCA9548A multiplexer(0x70);
+
+// Here we initialize the TCA9548A object with the I2C address of the multiplexer
+multiplexer.begin();
 
 #ifdef ESP8266
-    Wire.setClockStretchLimit(150000L); // Default stretch limit 150mS
+Wire.setClockStretchLimit(150000L); // Default stretch limit 150mS
 #endif
-    Wire.setClock(I2C_SPEED);
+Wire.setClock(I2C_SPEED);
 
-    // Wait for IMU to boot
-    delay(500);
-    
-    sensorManager.setup();
-    
-    Network::setUp();
-    OTA::otaSetup(otaPassword);
-    battery.Setup();
+// Wait for IMU to boot
+delay(500);
 
-    statusManager.setStatus(SlimeVR::Status::LOADING, false);
+sensorManager.setup();
 
-    sensorManager.postSetup();
+Network::setUp();
+OTA::otaSetup(otaPassword);
+battery.Setup();
 
-    loopTime = micros();
+statusManager.setStatus(SlimeVR::Status::LOADING, false);
+
+sensorManager.postSetup();
+
+loopTime = micros();
 }
 
 void loop()
 {
-    SerialCommands::update();
-    OTA::otaUpdate();
-    Network::update(sensorManager.getFirst(), sensorManager.getSecond());
+SerialCommands::update();
+OTA::otaUpdate();
+Network::update(sensorManager.getFirst(), sensorManager.getSecond());
+sensorManager.update();
+battery.Loop();
+ledManager.update();
+// Here we create a loop that will iterate through all 8 channels of the multiplexer
+for (int i = 0; i < 8; i++) {
+    // Select the current channel
+    multiplexer.selectChannel(i);
+    //Here we can read data from the sensor connected to the current channel.
+    //We can use the sensorManager.update() function or a specific function for the sensor we are using.
     sensorManager.update();
-    battery.Loop();
-    ledManager.update();
+}
+
 #ifdef TARGET_LOOPTIME_MICROS
-    long elapsed = (micros() - loopTime);
-    if (elapsed < TARGET_LOOPTIME_MICROS)
+long elapsed = (micros() - loopTime);
+if (elapsed < TARGET_LOOPTIME_MICROS)
+{
+    long sleepus = TARGET_LOOPTIME_MICROS - elapsed - 100;//µs to sleep
+    long sleepms = sleepus / 1000;//ms to sleep
+    if(sleepms > 0) // if >= 1 ms
     {
-        long sleepus = TARGET_LOOPTIME_MICROS - elapsed - 100;//µs to sleep
-        long sleepms = sleepus / 1000;//ms to sleep
-        if(sleepms > 0) // if >= 1 ms
-        {
-            delay(sleepms); // sleep ms = save power
-            sleepus -= sleepms * 1000;
-        }
-        if (sleepus > 100)
-        {
-            delayMicroseconds(sleepus);
-        }
+        delay(sleepms); // sleep ms = save power
+        sleepus -= sleepms * 1000;
     }
-    loopTime = micros();
+    if(sleepus > 0) // if >= 1 µs
+    {
+        delayMicroseconds(sleepus);
+    }
+}
+loopTime = micros();
 #endif
     #if defined(PRINT_STATE_EVERY_MS) && PRINT_STATE_EVERY_MS > 0
         unsigned long now = millis();
         if(lastStatePrint + PRINT_STATE_EVERY_MS < now) {
             lastStatePrint = now;
             SerialCommands::printState();
-        }
+}
     #endif
 }
