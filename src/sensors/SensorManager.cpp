@@ -10,14 +10,14 @@
 #include "ErroneousSensor.h"
 #include "TCA9548A.h"
 
+#include "i2cscan.h"
 #include "SensorManager.h"
-#include "SpecificSensor.h"
 #include "EmptySensor.h"
 
 namespace SlimeVR {
     namespace Sensors {
         void SensorManager::setup() {
-            std::vector<uint8_t> addresses = scanI2CAddresses();
+            std::vector<uint8_t> addresses = I2CSCAN::scanI2CAddresses();
             m_multiplexer->begin();
             uint8_t address;
         

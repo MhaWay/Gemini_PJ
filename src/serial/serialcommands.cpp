@@ -41,7 +41,7 @@ namespace SerialCommands {
     CmdBuffer<64> cmdBuffer;
 
     void cmdSet(CmdParser * parser) {
-        if(parser->getParamCount() != 1 && parser->equalCmdParam(1, "WIFI")  ) {
+        if(parser->getParamCount() != 1 && parser->equalCmdParam(1, "WIFI")) {
             if(parser->getParamCount() < 3) {
                 logger.error("CMD SET WIFI ERROR: Too few arguments");
                 logger.info("Syntax: SET WIFI \"<SSID>\" \"<PASSWORD>\"");
@@ -66,29 +66,29 @@ namespace SerialCommands {
             statusManager.getStatus(),
             WiFiNetwork::getWiFiState()
         );
-        Sensor* sensor1 = sensorManager.getFirst();
-        Sensor* sensor2 = sensorManager.getSecond();
-        logger.info(
-            "Sensor 1: %s (%.3f %.3f %.3f %.3f) is working: %s, had data: %s",
-            getIMUNameByType(sensor1->getSensorType()),
-            UNPACK_QUATERNION(sensor1->getQuaternion()),
-            sensor1->isWorking() ? "true" : "false",
-            sensor1->hadData ? "true" : "false"
-        );
-        logger.info(
-            "Sensor 2: %s (%.3f %.3f %.3f %.3f) is working: %s, had data: %s",
-            getIMUNameByType(sensor2->getSensorType()),
-            UNPACK_QUATERNION(sensor2->getQuaternion()),
-            sensor2->isWorking() ? "true" : "false",
-            sensor2->hadData ? "true" : "false"
-        );
+    
+        for (int i = 0; i < 8; i++) {
+            Sensor* sensor = sensorManager.getSensor(i);
+            if (sensor->isWorking()) {
+                logger.info(
+                    "Sensor %d: %s (%.3f %.3f %.3f %.3f) is working: %s, had data: %s",
+                    i,
+                    getIMUNameByType(sensor->getSensorType()),
+                    UNPACK_QUATERNION(sensor->getQuaternion()),
+                    sensor->isWorking() ? "true" : "false",
+                    sensor->hadData ? "true" : "false"
+                );
+            }
+        }
     }
 
-    void cmdGet(CmdParser * parser) {
+
+
+        void cmdGet(CmdParser * parser) {
         if (parser->getParamCount() < 2) {
             return;
         }
-        
+
         if (parser->equalCmdParam(1, "INFO")) {
             printState();
         }
@@ -112,55 +112,36 @@ namespace SerialCommands {
                 "LED_PIN=%d\n"
                 "LED_INVERTED=%d\n";
 
-            Serial.printf(
-                str.c_str(),
-                BOARD,
-                IMU,
-                SECOND_IMU,
-                IMU_ROTATION,
-                SECOND_IMU_ROTATION,
-                BATTERY_MONITOR,
-                BATTERY_SHIELD_RESISTANCE,
-                BATTERY_SHIELD_R1,
-                BATTERY_SHIELD_R2,
-                PIN_IMU_SDA,
-                PIN_IMU_SCL,
-                PIN_IMU_INT,
-                PIN_IMU_INT_2,
-                PIN_BATTERY_LEVEL,
-                LED_PIN,
-                LED_INVERTED
-            );
+            logger.info(str.c_str());
         }
 
-        if (parser->equalCmdParam(1, "TEST")) {
-            logger.info(
-                "[TEST] Board: %d, hardware: %d, build: %d, firmware: %s, address: %s, mac: %s, status: %d, wifi state: %d",
-                BOARD,
-                HARDWARE_MCU,
-                FIRMWARE_BUILD_NUMBER,
-                FIRMWARE_VERSION,
-                WiFiNetwork::getAddress().toString().c_str(),
-                WiFi.macAddress().c_str(),
-                statusManager.getStatus(),
-                WiFiNetwork::getWiFiState()
-            );
-            Sensor* sensor1 = sensorManager.getFirst();
-            sensor1->motionLoop();
-            logger.info(
-                "[TEST] Sensor 1: %s (%.3f %.3f %.3f %.3f) is working: %s, had data: %s",
-                getIMUNameByType(sensor1->getSensorType()),
-                UNPACK_QUATERNION(sensor1->getQuaternion()),
-                sensor1->isWorking() ? "true" : "false",
-                sensor1->hadData ? "true" : "false"
-            );
-            if(!sensor1->hadData) {
-                logger.error("[TEST] Sensor 1 didn't send any data yet!");
+        if (parser->equalCmdParam(1, "IMU")) {
+            if (parser->getParamCount() == 2) {
+                int sensorIndex = atoi(parser->getCmdParam(2));
+                if (sensorIndex > 0 && sensorIndex <= 8) {
+                    Sensor* sensor = sensorManager.getSensor(sensorIndex-1);
+                    if (sensor != nullptr) {
+                        logger.info(
+                            "Sensor %d: %s (%.3f %.3f %.3f %.3f) is working: %s, had data: %s",
+                            sensorIndex,
+                            getIMUNameByType(sensor->getSensorType()),
+                            UNPACK_QUATERNION(sensor->getQuaternion()),
+                            sensor->isWorking() ? "true" : "false",
+                            sensor->hadData ? "true" : "false"
+                        );
+                    } else {
+                        logger.error("CMD GET IMU ERROR: Invalid sensor index");
+                    }
+                } else {
+                    logger.error("CMD GET IMU ERROR: Invalid sensor index");
+                }
             } else {
-                logger.info("[TEST] Sensor 1 sent some data, looks working.");
+                logger.error("CMD GET IMU ERROR: Invalid number of arguments");
+                logger.info("Syntax: GET IMU <SENSOR_INDEX>");
             }
         }
     }
+
 
     void cmdReboot(CmdParser * parser) {
         logger.info("REBOOT");
@@ -200,7 +181,29 @@ namespace SerialCommands {
         
     }
 
-    void update() {
-        cmdCallbacks.updateCmdProcessing(&cmdParser, &cmdBuffer, &Serial);
+    void SerialCommands::update() {
+    if (Serial.available()) {
+        inputString = Serial.readString();
+        if (!inputString.isEmpty()) {
+            cmdBuffer.push(inputString);
+        }
     }
+
+    while (cmdBuffer.size() > 0) {
+        String cmd = cmdBuffer.pop();
+        cmdParser.parse(cmd.c_str());
+    }
+
+    for (int i = 0; i < 8; i++) {
+        Sensor* sensor = sensorManager.getSensor(i);
+        if (sensor->newData()) {
+            logger.info("Sensor %d: %s (%.3f %.3f %.3f %.3f) is working: %s",
+            i,
+            getIMUNameByType(sensor->getSensorType()),
+            UNPACK_QUATERNION(sensor->getQuaternion()),
+            sensor->isWorking() ? "true" : "false"
+            );
+        }
+    }
+}
 }

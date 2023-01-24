@@ -49,10 +49,10 @@ unsigned long loopTime = 0;
 unsigned long lastStatePrint = 0;
 bool secondImuActive = false;
 BatteryMonitor battery;
-TCA9548A multiplexer; // Crea un'istanza del multiplexer TCA9548A
 
 void setup()
 {
+    // TCA9548A multiplexer(0x70); // Crea un'istanza del multiplexer TCA9548A
     Serial.begin(serialBaudRate);
 
 #ifdef ESP32C3 
@@ -115,22 +115,26 @@ sensorManager.postSetup();
 loopTime = micros();
 }
 
-void loop()
-{
-SerialCommands::update();
-OTA::otaUpdate();
-Network::update(sensorManager.getFirst(), sensorManager.getSecond());
-sensorManager.update();
-battery.Loop();
-ledManager.update();
+void loop() {
+    SerialCommands::update();
+    OTA::otaUpdate();
+    for (int i = 0; i < 8; i++) {
+        if (sensorManager.getSensor(i) != nullptr) {
+            Network::update(sensorManager.getSensor(i), sensorManager.getSensor(i));
+        }
+    }
+    sensorManager.update();
+    battery.Loop();
+    ledManager.update();
+}
 // Here we create a loop that will iterate through all 8 channels of the multiplexer
-for (int i = 0; i < 8; i++) {
+/*for (int i = 0; i < 8; i++) {
     // Select the current channel
     multiplexer.selectChannel(i);
     //Here we can read data from the sensor connected to the current channel.
     //We can use the sensorManager.update() function or a specific function for the sensor we are using.
     sensorManager.update();
-}
+}*/
 
 #ifdef TARGET_LOOPTIME_MICROS
 long elapsed = (micros() - loopTime);
@@ -152,9 +156,10 @@ loopTime = micros();
 #endif
     #if defined(PRINT_STATE_EVERY_MS) && PRINT_STATE_EVERY_MS > 0
         unsigned long now = millis();
-        if(lastStatePrint + PRINT_STATE_EVERY_MS < now) {
-            lastStatePrint = now;
-            SerialCommands::printState();
-}
+//        if(lastStatePrint + PRINT_STATE_EVERY_MS < now) {
+//            lastStatePrint = now;
+//            SerialCommands::printState();
+//}
+
     #endif
-}
+
