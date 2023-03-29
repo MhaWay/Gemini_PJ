@@ -89,7 +89,7 @@ Wire.begin(static_cast<int>(PIN_IMU_SDA), static_cast<int>(PIN_IMU_SCL));
 
 // Here we include the TCA9548A library and create an object for it
 #include <TCA9548A.h>
-TCA9548A multiplexer(0x70);
+TCA9548A mux = Adafruit_TCA9548A(TCA_ADDR);
 
 // Here we initialize the TCA9548A object with the I2C address of the multiplexer
 multiplexer.begin();
@@ -114,19 +114,26 @@ sensorManager.postSetup();
 
 loopTime = micros();
 }
-
 void loop() {
-    SerialCommands::update();
-    OTA::otaUpdate();
-    for (int i = 0; i < 8; i++) {
-        if (sensorManager.getSensor(i) != nullptr) {
-            Network::update(sensorManager.getSensor(i), sensorManager.getSensor(i));
-        }
+  // Loop attraverso tutti i sensori collegati al multiplexer
+  for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+    // Seleziona il canale corrispondente al sensore corrente
+    mux.select(i);
+
+    // Leggi i dati dal sensore corrente
+    RotVecData data = rotvec_read();
+
+    // Invia i dati tramite ESP-Now
+    if (esp_now_send(BROADCAST_ADDRESS, (uint8_t*)&data, sizeof(data)) != ESP_OK) {
+      Serial.println("Errore durante l'invio dei dati tramite ESP-Now");
     }
-    sensorManager.update();
-    battery.Loop();
-    ledManager.update();
+    delay(10);
+  }
+
+  // Aggiungi una funzione di ritardo tra le iterazioni del loop
+  delay(100);
 }
+
 // Here we create a loop that will iterate through all 8 channels of the multiplexer
 /*for (int i = 0; i < 8; i++) {
     // Select the current channel
