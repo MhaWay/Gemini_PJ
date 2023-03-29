@@ -35,6 +35,13 @@
 #include "batterymonitor.h"
 #include "logging/Logger.h"
 #include "TCA9548A.h" // include la libreria TCA9548A
+// Definisci il numero di sensori collegati al multiplexer
+#define NUM_SENSORS 8
+
+// Definisci l'indirizzo del multiplexer e il canale predefinito per il sensore selezionato
+#define TCA_ADDR 0x70
+#define DEFAULT_CHANNEL 0
+
 
 SlimeVR::Logging::Logger logger("SlimeVR");
 SlimeVR::Sensors::SensorManager sensorManager;
@@ -50,70 +57,48 @@ unsigned long lastStatePrint = 0;
 bool secondImuActive = false;
 BatteryMonitor battery;
 
-void setup()
-{
-    // TCA9548A multiplexer(0x70); // Crea un'istanza del multiplexer TCA9548A
-    Serial.begin(serialBaudRate);
+void setup() {
+  // Inizializzazione seriale
+  Serial.begin(115200);
+  delay(1000);
+  
+  // Inizializzazione del WiFi
+  WiFiManager wifiManager;
+  wifiManager.autoConnect("SlimeVR Tracker");
+  
+  // Inizializzazione del client MQTT
+  mqttClient.setServer(mqttServer, mqttPort);
+  mqttClient.setCallback(mqttCallback);
 
-#ifdef ESP32C3 
-    // Wait for the Computer to be able to connect.
-    delay(2000);
-#endif
+  // Inizializzazione del multiplexer
+  mux.begin(TCA_ADDR);
+  mux.select(DEFAULT_CHANNEL);
+  
+  // Inizializzazione dei sensori
+  for (int i = 0; i < NUM_SENSORS; i++) {
+    sensors[i].begin(BNO_ADDRS[i], &Wire, mux);
+    sensors[i].setWire(&Wire);
+    sensors[i].setAddr(BNO_ADDRS[i]);
+    sensors[i].setMux(&mux);
+    sensors[i].enableRotationVector();
+    sensors[i].enableLinearAcceleration();
+  }
 
-    Serial.println();
-    Serial.println();
-    Serial.println();
+  // Connessione al server MQTT
+  while (!mqttClient.connected()) {
+    if (mqttClient.connect(mqttClientId)) {
+      Serial.println("Connesso al server MQTT");
+      mqttClient.subscribe(mqttTopic);
+    } else {
+      Serial.println("Connessione al server MQTT fallita. Riprovo tra 5 secondi...");
+      delay(5000);
+    }
+  }
 
-    logger.info("SlimeVR v" FIRMWARE_VERSION " starting up...");
-
-    statusManager.setStatus(SlimeVR::Status::LOADING, true);
-
-    ledManager.setup();
-    configuration.setup();
-
-    SerialCommands::setUp();
-
-#if IMU == IMU_MPU6500 || IMU == IMU_MPU6050 || IMU == IMU_MPU9250 || IMU == IMU_BNO055 || IMU == IMU_ICM20948
-    I2CSCAN::clearBus(PIN_IMU_SDA, PIN_IMU_SCL); // Make sure the bus isn't stuck when resetting ESP without powering it down
-    // Fixes I2C issues for certain IMUs. Only has been tested on IMUs above. Testing advised when adding other IMUs.
-#endif
-    // join I2C bus
-
-#if ESP32
-// For some unknown reason the I2C seem to be open on ESP32-C3 by default. Let's just close it before opening it again. (The ESP32-C3 only has 1 I2C.)
-Wire.end();
-#endif
-
-// using `static_cast` here seems to be better, because there are 2 similar function signatures
-Wire.begin(static_cast<int>(PIN_IMU_SDA), static_cast<int>(PIN_IMU_SCL));
-
-// Here we include the TCA9548A library and create an object for it
-#include <TCA9548A.h>
-TCA9548A mux = Adafruit_TCA9548A(TCA_ADDR);
-
-// Here we initialize the TCA9548A object with the I2C address of the multiplexer
-multiplexer.begin();
-
-#ifdef ESP8266
-Wire.setClockStretchLimit(150000L); // Default stretch limit 150mS
-#endif
-Wire.setClock(I2C_SPEED);
-
-// Wait for IMU to boot
-delay(500);
-
-sensorManager.setup();
-
-Network::setUp();
-OTA::otaSetup(otaPassword);
-battery.Setup();
-
-statusManager.setStatus(SlimeVR::Status::LOADING, false);
-
-sensorManager.postSetup();
-
-loopTime = micros();
+  // Stampa un messaggio di avvio completato
+  Serial.println("Avvio completato");
 }
+
 void loop() {
   // Loop attraverso tutti i sensori collegati al multiplexer
   for (uint8_t i = 0; i < NUM_SENSORS; i++) {
