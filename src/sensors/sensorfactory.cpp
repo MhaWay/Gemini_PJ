@@ -56,57 +56,44 @@ void SensorFactory::SetIMU(uint8_t bus)
     Wire.endTransmission();
 }
 
-void SensorFactory::create()
-{
+void SensorFactory::create() {
     Serial.println("Starting Bus Scan");
 
-    for (int BankCount = 0; BankCount < 2; BankCount++)
-    {
+    for (int i = 0; i < 8; i++) {
+        this->SetIMU(i);
+        I2CSCAN::DeviceParams DeviceParams = I2CSCAN::pickDevice(0); // assuming all sensors are on bank A
 
-        for (int SensorCount = 0; SensorCount < IMUCount; SensorCount++)
-        {
-            this->SetIMU(SensorCount);
-            I2CSCAN::DeviceParams DeviceParams = I2CSCAN::pickDevice(BankCount);
-
-            switch (DeviceParams.DeviceID)
-            {
+        switch (DeviceParams.DeviceID) {
             case MPU6050_t:
-                this->IMUs[SensorCount + (BankCount * IMUCount)] = new MPU6050Sensor(DeviceParams.DeviceAddress);
-                this->IMUs[SensorCount + (BankCount * IMUCount)]->Connected = true;
+                this->IMUs[i] = new MPU6050Sensor(DeviceParams.DeviceAddress);
+                this->IMUs[i]->Connected = true;
                 Serial.println("Found MPU6050");
                 break;
-
             case ICM_20948_t:
-                this->IMUs[SensorCount + (BankCount * IMUCount)] = new ICM20948Sensor(DeviceParams.DeviceAddress);
-                this->IMUs[SensorCount + (BankCount * IMUCount)]->Connected = true;
+                this->IMUs[i] = new ICM20948Sensor(DeviceParams.DeviceAddress);
+                this->IMUs[i]->Connected = true;
                 Serial.println("Found ICM20948");
                 break;
-
             case BNO_080_t:
-                this->IMUs[SensorCount + (BankCount * IMUCount)] = new BNO080Sensor(DeviceParams.DeviceAddress);
-                this->IMUs[SensorCount + (BankCount * IMUCount)]->Connected = true;
+                this->IMUs[i] = new BNO080Sensor(DeviceParams.DeviceAddress);
+                this->IMUs[i]->Connected = true;
                 Serial.println("Found BNO080");
                 break;
-
             default:
-                if (DeviceParams.DeviceAddress == 0x4A || DeviceParams.DeviceAddress == 0x4B) // fallback for the BNO IMU
-                {
-                    this->IMUs[SensorCount + (BankCount * IMUCount)] = new BNO080Sensor(DeviceParams.DeviceAddress);
-                    this->IMUs[SensorCount + (BankCount * IMUCount)]->Connected = true;
+                if (DeviceParams.DeviceAddress == 0x4A || DeviceParams.DeviceAddress == 0x4B) { // fallback for the BNO IMU
+                    this->IMUs[i] = new BNO080Sensor(DeviceParams.DeviceAddress);
+                    this->IMUs[i]->Connected = true;
                     Serial.println("Found BNO080");
-                }
-                else
-                {
-
-                    this->IMUs[SensorCount + (BankCount * IMUCount)] = new EmptySensor();
-                    this->IMUs[SensorCount + (BankCount * IMUCount)]->Connected = false;
+                } else {
+                    this->IMUs[i] = new EmptySensor();
+                    this->IMUs[i]->Connected = false;
                     Serial.println("Nothing Found");
                 }
                 break;
-            }
         }
     }
 }
+
 
 void SensorFactory::init()
 {

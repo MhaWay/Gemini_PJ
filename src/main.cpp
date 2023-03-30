@@ -68,9 +68,7 @@ BatteryMonitor battery;
 //     //   sensors.IMU_Int_Triggered(Int_Caller + 8);
 // }
 
-void setup()
-{
-
+void setup() {
     Serial.begin(serialBaudRate);
     SerialCommands::setUp();
     Serial.println();
@@ -78,28 +76,11 @@ void setup()
     Serial.println();
 
     Wire.begin(PIN_IMU_SDA, PIN_IMU_SCL);
-
     Wire.setClockStretchLimit(150000L); // Default stretch limit 150mS
     Wire.setClock(I2C_SPEED);
-
     I2CSCAN::clearBus(PIN_IMU_SDA, PIN_IMU_SCL); // Make sure the bus isn't suck when reseting ESP without powering it down
 
     Haptics::Discovery();
-
-    // while (true)
-    // {
-    //     int8_t MuxID = 0;
-    //         for (uint8_t Motor = 0; Motor < 8; Motor++)
-    //         {
-    //             Serial.print("Setting Motor : ");
-    //             Serial.println(Motor);
-    //             Haptics::SetLevel(MuxID, 7, Motor, 255);
-    //             delay(100);
-    //             Haptics::SetLevel(MuxID, 7, Motor, 0);
-    //             delay(100);
-    //             Haptics::SetLevel(MuxID, 7, Motor, 255);
-    //         }
-    // }
 
     UI::Setup();
     UI::DrawSplash();
@@ -108,46 +89,34 @@ void setup()
     UI::MainUIFrame();
     UI::SetMessage(1);
 
-    // myMCP.Init();
-    // myMCP.setPortMode(0b00000000, A);
-    // myMCP.setPortMode(0b00000000, B);
-    // myMCP.setInterruptPinPol(LOW);                 // set INTA and INTB active-high
-    // myMCP.setInterruptOnChangePort(0b11111111, A); // set all B pins as interrrupt Pins
-    // myMCP.setInterruptOnChangePort(0b11111111, B); // set all B pins as interrrupt Pins
-
-    // pinMode(INT_PIN1, INPUT_PULLUP);
-    // pinMode(INT_PIN2, INPUT_PULLUP);
-
     getConfigPtr();
 
     delay(500);
 
-   // ESP.wdtDisable();
-
-    sensors.create();
-    sensors.init();
+    sensors.create(); // Crea tutti i 8 sensori
+    for (int i = 0; i < 8; i++) {
+        sensors.IMUs[i].init(); // Inizializza ogni singolo sensore
+    }
     sensors.motionSetup();
 
     Network::setUp();
     battery.Setup();
     loopTime = micros();
-    //ESP.wdtEnable(5000);
-
-    // attachInterrupt(digitalPinToInterrupt(INT_PIN1), IntBank_A, FALLING); // Set up a falling interrupt
-    // attachInterrupt(digitalPinToInterrupt(INT_PIN2), IntBank_B, FALLING); // Set up a falling interrupt
-    // myMCP.getIntCap(B);                                                   // ensures that existing interrupts are cleared
-    // myMCP.getIntCap(A);                                                   // ensures that existing interrupts are cleared
 }
+
 
 void loop()
 {
 
     SerialCommands::update();
     Network::update(sensors.IMUs);
-    sensors.motionLoop();
-    sensors.sendData();
     battery.Loop();
 
+    for (int i = 0; i < 8; i++) {
+      sensors.IMUs[i]->motionLoop();
+      sensors.IMUs[i]->sendData();
+      delay(50);
+    }
     // if (INT_Triggered_Bank_A || INT_Triggered_Bank_B)
     // {
     //     switch (INT_Bank)
