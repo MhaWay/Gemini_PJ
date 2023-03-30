@@ -1,6 +1,6 @@
 /*
     SlimeVR Code is placed under the MIT license
-    Copyright (c) 2021 Eiren Rain & SlimeVR contributors
+    Copyright (c) 2021 Eiren Rain
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,7 @@
 #ifndef SLIMEVR_WIFI_H_
 #define SLIMEVR_WIFI_H_
 
+#include "configuration.h"
 #ifdef ESP8266
     #include <ESP8266WiFi.h>
 #else
@@ -35,18 +36,6 @@ namespace WiFiNetwork {
     void upkeep();
     void setWiFiCredentials(const char * SSID, const char * pass);
     IPAddress getAddress();
-    uint8_t getWiFiState();
 }
-
-/** Wifi Reconnection Statuses **/
-typedef enum {
-    SLIME_WIFI_NOT_SETUP = 0,
-    SLIME_WIFI_SAVED_ATTEMPT,
-    SLIME_WIFI_SAVED_G_ATTEMPT,
-    SLIME_WIFI_HARDCODE_ATTEMPT,
-    SLIME_WIFI_HARDCODE_G_ATTEMPT,
-    SLIME_WIFI_SERVER_CRED_ATTEMPT,
-    SLIME_WIFI_SERVER_CRED_G_ATTEMPT
-} wifi_reconnection_statuses;
 
 #endif // SLIMEVR_WIFI_H_

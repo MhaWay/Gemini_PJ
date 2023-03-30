@@ -1,6 +1,6 @@
 /*
     SlimeVR Code is placed under the MIT license
-    Copyright (c) 2021 Eiren Rain & SlimeVR contributors
+    Copyright (c) 2021 Eiren Rain
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -22,136 +22,174 @@
 */
 
 #include "Wire.h"
-#include "ota.h"
-#include "sensors/SensorManager.h"
-#include "configuration/Configuration.h"
+#include "sensors/sensorfactory.h"
+#include "configuration.h"
 #include "network/network.h"
 #include "globals.h"
 #include "credentials.h"
 #include <i2cscan.h>
+#include <i2Cdev.h>
 #include "serial/serialcommands.h"
-#include "LEDManager.h"
-#include "status/StatusManager.h"
 #include "batterymonitor.h"
-#include "logging/Logger.h"
-#include "TCA9548A.h" // include la libreria TCA9548A
-// Definisci il numero di sensori collegati al multiplexer
-#define NUM_SENSORS 8
+#include "UI\UI.h"
+#include <MCP23017.h>
 
-// Definisci l'indirizzo del multiplexer e il canale predefinito per il sensore selezionato
-#define TCA_ADDR 0x70
-#define DEFAULT_CHANNEL 0
+#define INT_PIN1 D6 
+#define INT_PIN2 D5 
+#define INT_RESET D7
 
-
-SlimeVR::Logging::Logger logger("SlimeVR");
-SlimeVR::Sensors::SensorManager sensorManager;
-SlimeVR::LEDManager ledManager(LED_PIN);
-SlimeVR::Status::StatusManager statusManager;
-SlimeVR::Configuration::Configuration configuration;
-
+SensorFactory sensors{};
 int sensorToCalibrate = -1;
-bool blinking = false;
+volatile bool INT_Triggered_Bank_A = false;
+volatile bool INT_Triggered_Bank_B = false;
+volatile uint8_t INT_Bank = A;
+volatile uint8_t INT_Caller = 0;
 unsigned long blinkStart = 0;
 unsigned long loopTime = 0;
-unsigned long lastStatePrint = 0;
+unsigned long last_rssi_sample = 0;
+unsigned long last_Haptic_Heartbeat = millis() + 5000;
+
 bool secondImuActive = false;
 BatteryMonitor battery;
 
-void setup() {
-  // Inizializzazione seriale
-  Serial.begin(115200);
-  delay(1000);
-  
-  // Inizializzazione del WiFi
-  WiFiManager wifiManager;
-  wifiManager.autoConnect("SlimeVR Tracker");
-  
-  // Inizializzazione del client MQTT
-  mqttClient.setServer(mqttServer, mqttPort);
-  mqttClient.setCallback(mqttCallback);
+// MCP23017 myMCP = MCP23017(0x20, INT_RESET);
 
-  // Inizializzazione del multiplexer
-  mux.begin(TCA_ADDR);
-  mux.select(DEFAULT_CHANNEL);
-  
-  // Inizializzazione dei sensori
-  for (int i = 0; i < NUM_SENSORS; i++) {
-    sensors[i].begin(BNO_ADDRS[i], &Wire, mux);
-    sensors[i].setWire(&Wire);
-    sensors[i].setAddr(BNO_ADDRS[i]);
-    sensors[i].setMux(&mux);
-    sensors[i].enableRotationVector();
-    sensors[i].enableLinearAcceleration();
-  }
+// IRAM_ATTR void IntBank_A(void)
+// {
+//     INT_Triggered_Bank_A = true;
+//     INT_Bank = A;
+//     INT_Caller = log(myMCP.getIntFlag(A)) / log(2);
+//     //  sensors.IMU_Int_Triggered(Int_Caller);
+// }
 
-  // Connessione al server MQTT
-  while (!mqttClient.connected()) {
-    if (mqttClient.connect(mqttClientId)) {
-      Serial.println("Connesso al server MQTT");
-      mqttClient.subscribe(mqttTopic);
-    } else {
-      Serial.println("Connessione al server MQTT fallita. Riprovo tra 5 secondi...");
-      delay(5000);
-    }
-  }
+// IRAM_ATTR void IntBank_B(void)
+// {
+//     INT_Triggered_Bank_B = true;
+//     INT_Bank = B;
+//     INT_Caller = (log(myMCP.getIntFlag(B)) / log(2));
+//     //   sensors.IMU_Int_Triggered(Int_Caller + 8);
+// }
 
-  // Stampa un messaggio di avvio completato
-  Serial.println("Avvio completato");
-}
-
-void loop() {
-  // Loop attraverso tutti i sensori collegati al multiplexer
-  for (uint8_t i = 0; i < NUM_SENSORS; i++) {
-    // Seleziona il canale corrispondente al sensore corrente
-    mux.select(i);
-
-    // Leggi i dati dal sensore corrente
-    RotVecData data = rotvec_read();
-
-    // Invia i dati tramite ESP-Now
-    if (esp_now_send(BROADCAST_ADDRESS, (uint8_t*)&data, sizeof(data)) != ESP_OK) {
-      Serial.println("Errore durante l'invio dei dati tramite ESP-Now");
-    }
-    delay(10);
-  }
-
-  // Aggiungi una funzione di ritardo tra le iterazioni del loop
-  delay(100);
-}
-
-// Here we create a loop that will iterate through all 8 channels of the multiplexer
-/*for (int i = 0; i < 8; i++) {
-    // Select the current channel
-    multiplexer.selectChannel(i);
-    //Here we can read data from the sensor connected to the current channel.
-    //We can use the sensorManager.update() function or a specific function for the sensor we are using.
-    sensorManager.update();
-}*/
-
-#ifdef TARGET_LOOPTIME_MICROS
-long elapsed = (micros() - loopTime);
-if (elapsed < TARGET_LOOPTIME_MICROS)
+void setup()
 {
-    long sleepus = TARGET_LOOPTIME_MICROS - elapsed - 100;//µs to sleep
-    long sleepms = sleepus / 1000;//ms to sleep
-    if(sleepms > 0) // if >= 1 ms
-    {
-        delay(sleepms); // sleep ms = save power
-        sleepus -= sleepms * 1000;
-    }
-    if(sleepus > 0) // if >= 1 µs
-    {
-        delayMicroseconds(sleepus);
-    }
+
+    Serial.begin(serialBaudRate);
+    SerialCommands::setUp();
+    Serial.println();
+    Serial.println();
+    Serial.println();
+
+    Serial.println("System Startup");
+
+
+    Wire.begin(PIN_IMU_SDA, PIN_IMU_SCL);
+
+    Serial.println("Startup I2C");
+
+    Wire.setClockStretchLimit(150000L); // Default stretch limit 150mS
+    Wire.setClock(I2C_SPEED);
+
+    I2CSCAN::clearBus(PIN_IMU_SDA, PIN_IMU_SCL); // Make sure the bus isn't suck when reseting ESP without powering it down
+
+    Haptics::Discovery();
+
+    // while (true)
+    // {
+    //     int8_t MuxID = 0;
+    //         for (uint8_t Motor = 0; Motor < 8; Motor++)
+    //         {
+    //             Serial.print("Setting Motor : ");
+    //             Serial.println(Motor);
+    //             Haptics::SetLevel(MuxID, 7, Motor, 255);
+    //             delay(100);
+    //             Haptics::SetLevel(MuxID, 7, Motor, 0);
+    //             delay(100);
+    //             Haptics::SetLevel(MuxID, 7, Motor, 255);
+    //         }
+    // }
+
+    Serial.println("Startup UI");
+
+    UI::Setup();
+    UI::DrawSplash();
+
+    delay(1500);
+    UI::MainUIFrame();
+    UI::SetMessage(1);
+
+    // myMCP.Init();
+    // myMCP.setPortMode(0b00000000, A);
+    // myMCP.setPortMode(0b00000000, B);
+    // myMCP.setInterruptPinPol(LOW);                 // set INTA and INTB active-high
+    // myMCP.setInterruptOnChangePort(0b11111111, A); // set all B pins as interrrupt Pins
+    // myMCP.setInterruptOnChangePort(0b11111111, B); // set all B pins as interrrupt Pins
+
+    // pinMode(INT_PIN1, INPUT_PULLUP);
+    // pinMode(INT_PIN2, INPUT_PULLUP);
+
+    getConfigPtr();
+
+    delay(500);
+
+    sensors.create();
+    sensors.init();
+    sensors.motionSetup();
+
+    Network::setUp();
+    battery.Setup();
+    loopTime = micros();
+
+    // attachInterrupt(digitalPinToInterrupt(INT_PIN1), IntBank_A, FALLING); // Set up a falling interrupt
+    // attachInterrupt(digitalPinToInterrupt(INT_PIN2), IntBank_B, FALLING); // Set up a falling interrupt
+    // myMCP.getIntCap(B);                                                   // ensures that existing interrupts are cleared
+    // myMCP.getIntCap(A);                                                   // ensures that existing interrupts are cleared
+
+    ServerConnection::resetConnection();
+
+    last_Haptic_Heartbeat = millis() + 5000;
+
+    Serial.println("Startup Complete , Entering Loop");
+
 }
-loopTime = micros();
-#endif
-    #if defined(PRINT_STATE_EVERY_MS) && PRINT_STATE_EVERY_MS > 0
-        unsigned long now = millis();
-//        if(lastStatePrint + PRINT_STATE_EVERY_MS < now) {
-//            lastStatePrint = now;
-//            SerialCommands::printState();
-//}
 
-    #endif
+void loop()
+{
 
+    SerialCommands::update();
+    Network::update(sensors.IMUs);
+    sensors.motionLoop();
+    sensors.sendData();
+    battery.Loop();
+
+
+    // if (INT_Triggered_Bank_A || INT_Triggered_Bank_B)
+    // {
+    //     switch (INT_Bank)
+    //     {
+    //     case A:
+    //         myMCP.getIntCap(A); // ensures that existing interrupts are cleared
+    //         INT_Triggered_Bank_A = false;
+    //         break;
+    //     case B:
+    //         myMCP.getIntCap(B); // ensures that existing interrupts are cleared
+    //         INT_Triggered_Bank_B = false;
+    //         break;
+    //     }
+
+    //     Serial.print(F("Int Triggered : "));
+    //     Serial.print(INT_Caller);
+
+    //     Serial.print(F(" For Bank : "));
+    //     Serial.println(INT_Bank);
+    // }
+
+
+    if (millis() - last_rssi_sample >= 2000)
+    {
+        last_rssi_sample = millis();
+        uint8_t signalStrength = WiFi.RSSI();
+        Network::sendSignalStrength(signalStrength);
+    }
+
+
+}

@@ -24,19 +24,26 @@
 
 bool lastWifiConnected = false;
 
-void Network::setUp() {
+void Network::setUp()
+{
     WiFiNetwork::setUp();
 }
 
-void Network::update(Sensor * const sensor, Sensor * const sensor2) {
+void Network::update(Sensor *Sensors[])
+{
     WiFiNetwork::upkeep();
-    if(WiFiNetwork::isConnected()) {
-        if(lastWifiConnected == false) {
+    if (WiFiNetwork::isConnected())
+    {
+        if (lastWifiConnected == false)
+        {
             lastWifiConnected = true;
             ServerConnection::resetConnection(); // WiFi was reconnected, reconnect to the server
         }
-        ServerConnection::update(sensor, sensor2);
-    } else {
+        ServerConnection::update(Sensors);
+        ServerConnection::Haptics_update();
+    }
+    else
+    {
         lastWifiConnected = false;
     }
 }

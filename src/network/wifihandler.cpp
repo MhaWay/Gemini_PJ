@@ -1,6 +1,6 @@
 /*
     SlimeVR Code is placed under the MIT license
-    Copyright (c) 2021 Eiren Rain & SlimeVR contributors
+    Copyright (c) 2021 Eiren Rain
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -22,8 +22,6 @@
 */
 #include "globals.h"
 #include "network.h"
-#include "logging/Logger.h"
-#include "GlobalVars.h"
 #if !ESP8266
 #include "esp_wifi.h"
 #endif
@@ -31,12 +29,8 @@
 unsigned long lastWifiReportTime = 0;
 unsigned long wifiConnectionTimeout = millis();
 bool isWifiConnected = false;
-uint8_t wifiState = SLIME_WIFI_NOT_SETUP;
+uint8_t wifiState = 0;
 bool hadWifi = false;
-unsigned long last_rssi_sample = 0;
-
-// TODO: Cleanup with proper classes
-SlimeVR::Logging::Logger wifiHandlerLogger("WiFiHandler");
 
 void reportWifiError() {
     if(lastWifiReportTime + 1000 < millis()) {
@@ -45,26 +39,16 @@ void reportWifiError() {
     }
 }
 
-void setStaticIPIfDefined() {
-    #ifdef WIFI_USE_STATICIP
-    const IPAddress ip(WIFI_STATIC_IP);
-    const IPAddress gateway(WIFI_STATIC_GATEWAY);
-    const IPAddress subnet(WIFI_STATIC_SUBNET);
-    WiFi.config(ip, gateway, subnet);
-    #endif
-}
-
 bool WiFiNetwork::isConnected() {
     return isWifiConnected;
 }
 
 void WiFiNetwork::setWiFiCredentials(const char * SSID, const char * pass) {
     stopProvisioning();
-    setStaticIPIfDefined();
     WiFi.begin(SSID, pass);
     // Reset state, will get back into provisioning if can't connect
     hadWifi = false;
-    wifiState = SLIME_WIFI_SERVER_CRED_ATTEMPT;
+    wifiState = 2;
     wifiConnectionTimeout = millis();
 }
 
@@ -73,19 +57,16 @@ IPAddress WiFiNetwork::getAddress() {
 }
 
 void WiFiNetwork::setUp() {
-    wifiHandlerLogger.info("Setting up WiFi");
+    Serial.println("[NOTICE] WiFi: Setting up WiFi");
     WiFi.persistent(true);
     WiFi.mode(WIFI_STA);
-    #if ESP8266
-    WiFi.setPhyMode(WIFI_PHY_MODE_11N);
-    #endif
-    WiFi.hostname("SlimeVR FBT Tracker");
-    wifiHandlerLogger.info("Loaded credentials for SSID %s and pass length %d", WiFi.SSID().c_str(), WiFi.psk().length());
-    setStaticIPIfDefined();
+    WiFi.hostname("OctoSlime FBT-H");
+    Serial.printf("[NOTICE] WiFi: Loaded credentials for SSID %s and pass length %d\n", WiFi.SSID().c_str(), WiFi.psk().length());
     wl_status_t status = WiFi.begin(); // Should connect to last used access point, see https://arduino-esp8266.readthedocs.io/en/latest/esp8266wifi/station-class.html#begin
-    wifiHandlerLogger.debug("Status: %d", status);
-    wifiState = SLIME_WIFI_SAVED_ATTEMPT;
+    Serial.printf("[NOTICE] Status: %d", status);
+    wifiState = 1;
     wifiConnectionTimeout = millis();
+    UI::SetMessage(2);
     
 #if ESP8266
 #if POWERSAVING_MODE == POWER_SAVING_NONE
@@ -113,7 +94,7 @@ void WiFiNetwork::setUp() {
     }
     else
     {
-        wifiHandlerLogger.error("Unable to get WiFi config, power saving not enabled!");
+        Serial.println("[ERR] Unable to get wifi config, power saving not enabled!");
     }
 #endif
 #endif
@@ -121,95 +102,42 @@ void WiFiNetwork::setUp() {
 
 void onConnected() {
     WiFiNetwork::stopProvisioning();
-    statusManager.setStatus(SlimeVR::Status::WIFI_CONNECTING, false);
     isWifiConnected = true;
     hadWifi = true;
-    wifiHandlerLogger.info("Connected successfully to SSID '%s', ip address %s", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
-}
+    Serial.printf("[NOTICE] WiFi: Connected successfully to SSID '%s', ip address %s\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
+    UI::SetMessage(4);
 
-uint8_t WiFiNetwork::getWiFiState() {
-    return wifiState;
 }
 
 void WiFiNetwork::upkeep() {
     upkeepProvisioning();
     if(WiFi.status() != WL_CONNECTED) {
         if(isWifiConnected) {
-            wifiHandlerLogger.warn("Connection to WiFi lost, reconnecting...");
+            Serial.printf("[NOTICE] WiFi: Connection to WiFi lost, reconnecting...");
             isWifiConnected = false;
         }
-        statusManager.setStatus(SlimeVR::Status::WIFI_CONNECTING, true);
         reportWifiError();
         if(wifiConnectionTimeout + 11000 < millis()) {
             switch(wifiState) {
-                case SLIME_WIFI_NOT_SETUP: // Wasn't set up
+                case 0: // Wasn't set up
                 return;
-                case SLIME_WIFI_SAVED_ATTEMPT: // Couldn't connect with first set of credentials
-                    #if ESP8266
-                        // Try again but with 11G
-                        // But only if there are credentials, otherwise we just waste time before
-                        // switching to hardcoded credentials.
-                        if (WiFi.SSID().length() > 0) {
-                            WiFi.setPhyMode(WIFI_PHY_MODE_11G);
-                            setStaticIPIfDefined();
-                            WiFi.begin();
-                            wifiConnectionTimeout = millis();
-                            wifiHandlerLogger.error("Can't connect from saved credentials, status: %d.", WiFi.status());
-                            wifiHandlerLogger.debug("Trying saved credentials with PHY Mode G...");
-                        } else {
-                            wifiHandlerLogger.debug("Skipping PHY Mode G attempt on 0-length SSID...");
-                        }
-                    #endif
-                    wifiState = SLIME_WIFI_SAVED_G_ATTEMPT;
-                return;
-                case SLIME_WIFI_SAVED_G_ATTEMPT: // Couldn't connect with first set of credentials with PHY Mode G
+                case 1: // Couldn't connect with first set of credentials
                     #if defined(WIFI_CREDS_SSID) && defined(WIFI_CREDS_PASSWD)
                         // Try hardcoded credentials now
-                        #if ESP8266
-                            WiFi.setPhyMode(WIFI_PHY_MODE_11N);
-                        #endif
-                        setStaticIPIfDefined();
                         WiFi.begin(WIFI_CREDS_SSID, WIFI_CREDS_PASSWD);
                         wifiConnectionTimeout = millis();
-                        wifiHandlerLogger.error("Can't connect from saved credentials, status: %d.", WiFi.status());
-                        wifiHandlerLogger.debug("Trying hardcoded credentials...");
+                        Serial.printf("[NOTICE] WiFi: Can't connect from saved credentials, status: %d.\n", WiFi.status());
+                        Serial.println("[NOTICE] WiFi: Trying hardcoded credentials...");
                     #endif
-                    wifiState = SLIME_WIFI_HARDCODE_ATTEMPT;
+                    wifiState = 2;
                 return;
-                case SLIME_WIFI_HARDCODE_ATTEMPT: // Couldn't connect with second set of credentials
-                    #if defined(WIFI_CREDS_SSID) && defined(WIFI_CREDS_PASSWD) && ESP8266
-                        // Try hardcoded credentials again, but with PHY Mode G
-                        WiFi.setPhyMode(WIFI_PHY_MODE_11G);
-                        setStaticIPIfDefined();
-                        WiFi.begin(WIFI_CREDS_SSID, WIFI_CREDS_PASSWD);
-                        wifiConnectionTimeout = millis();
-                        wifiHandlerLogger.error("Can't connect from saved credentials, status: %d.", WiFi.status());
-                        wifiHandlerLogger.debug("Trying hardcoded credentials with WiFi PHY Mode G...");
-                    #endif
-                    wifiState = SLIME_WIFI_HARDCODE_G_ATTEMPT;
-                return;
-                case SLIME_WIFI_SERVER_CRED_ATTEMPT: // Couldn't connect with server-sent credentials. 
-                    #if ESP8266
-                        // Try again silently but with 11G
-                        WiFi.setPhyMode(WIFI_PHY_MODE_11G);
-                        setStaticIPIfDefined();
-                        WiFi.begin();
-                        wifiConnectionTimeout = millis();
-                        wifiState = SLIME_WIFI_SERVER_CRED_G_ATTEMPT;
-                    #endif
-                return;                
-                case SLIME_WIFI_HARDCODE_G_ATTEMPT: // Couldn't connect with second set of credentials with PHY Mode G.
-                case SLIME_WIFI_SERVER_CRED_G_ATTEMPT: // Or if couldn't connect with server-sent credentials
+                case 2: // Couldn't connect with second set of credentials
                     // Start smart config
                     if(!hadWifi && !WiFi.smartConfigDone() && wifiConnectionTimeout + 11000 < millis()) {
                         if(WiFi.status() != WL_IDLE_STATUS) {
-                            wifiHandlerLogger.error("Can't connect from any credentials, status: %d.", WiFi.status());
-                            wifiConnectionTimeout = millis();
+                            Serial.printf("[NOTICE] WiFi: Can't connect from any credentials, status: %d.\n", WiFi.status());
+                                UI::SetMessage(3);
                         }
-                        // Return to the default PHY Mode N.
-                        #if ESP8266
-                            WiFi.setPhyMode(WIFI_PHY_MODE_11N);
-                        #endif
                         startProvisioning();
                     }
                 return;
@@ -220,12 +148,6 @@ void WiFiNetwork::upkeep() {
     if(!isWifiConnected) {
         onConnected();
         return;
-    } else {
-        if(millis() - last_rssi_sample >= 2000) {
-            last_rssi_sample = millis();
-            uint8_t signalStrength = WiFi.RSSI();
-            Network::sendSignalStrength(signalStrength);
-        }
     }
     return;
 }

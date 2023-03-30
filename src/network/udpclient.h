@@ -1,6 +1,6 @@
 /*
     SlimeVR Code is placed under the MIT license
-    Copyright (c) 2021 Eiren Rain & SlimeVR contributors
+    Copyright (c) 2021 Eiren Rain
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -26,15 +26,23 @@
 #include <WiFiUdp.h>
 #include <Arduino.h>
 #include "quat.h"
+#include "configuration.h"
 #include "sensors/sensor.h"
 #include "wifihandler.h"
 #include "globals.h"
 
-namespace ServerConnection {
-    void connect();
-    void update(Sensor * const sensor, Sensor * const sensor2);
+namespace ServerConnection
+{
+    void Slimeconnect();
+    void Hapticsconnect();
+    void update(Sensor *Sensors[]);
+    void Haptics_update();
     void resetConnection();
     bool isConnected();
+    int DataReady();
+    bool IsHapticServerConnected();
+    bool IsSlimeServerConnected();
+
 }
 
 #endif // SLIMEVR_UDP_CLIENT_H_

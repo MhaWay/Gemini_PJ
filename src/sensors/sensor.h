@@ -1,6 +1,6 @@
 /*
     SlimeVR Code is placed under the MIT license
-    Copyright (c) 2021 Eiren Rain & SlimeVR contributors
+    Copyright (c) 2021 Eiren Rain
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -27,34 +27,27 @@
 #include <Arduino.h>
 #include <quat.h>
 #include <vector3.h>
-#include "configuration/Configuration.h"
+#include "configuration.h"
 #include "globals.h"
-#include "logging/Logger.h"
-#include "utils.h"
 
-#define EARTH_GRAVITY 9.80665
 #define DATA_TYPE_NORMAL 1
 #define DATA_TYPE_CORRECTION 2
 
 class Sensor
 {
 public:
-    Sensor(const char *sensorName, uint8_t type, uint8_t id, uint8_t address, float rotation)
-        : addr(address), sensorId(id), sensorType(type), sensorOffset({Quat(Vector3(0, 0, 1), rotation)}), m_Logger(SlimeVR::Logging::Logger(sensorName))
-    {
-        char buf[4];
-        sprintf(buf, "%u", id);
-        m_Logger.setTag(buf);
-    }
-
+    Sensor(uint8_t address){Connected = false;addr=address;};
+    Sensor(){Connected = false;};
     virtual ~Sensor(){};
+
     virtual void motionSetup(){};
-    virtual void postSetup(){};
+    virtual void setupSensor(uint8_t sensorId){}; 
     virtual void motionLoop(){};
     virtual void sendData();
     virtual void startCalibration(int calibrationType){};
     virtual uint8_t getSensorState();
-    virtual void update() = 0;
+    virtual void Int_Fired();
+
     bool isWorking()
     {
         return working;
@@ -65,27 +58,33 @@ public:
     uint8_t getSensorType() {
         return sensorType;
     };
-    Quat& getQuaternion() {
-        return quaternion;
-    };
 
-    bool hadData = false;
+    bool Connected = true;
+    bool newData = false;
+
 protected:
     uint8_t addr = 0;
+    uint8_t intPin = 255;
     uint8_t sensorId = 0;
     uint8_t sensorType = 0;
     bool configured = false;
-    bool newData = false;
     bool working = false;
     uint8_t calibrationAccuracy = 0;
-    Quat sensorOffset;
+    Quat sensorOffset = Quat(Vector3(0, 0, 1), IMU_ROTATION);
 
     Quat quaternion{};
     Quat lastQuatSent{};
+};
 
-    float acceleration[3]{};
-
-    SlimeVR::Logging::Logger m_Logger;
+class EmptySensor : public Sensor
+{
+public:
+    EmptySensor(){Connected = false;};
+    ~EmptySensor(){};
+    void motionSetup() override final{};
+    void motionLoop() override final{};
+    void sendData() override final{};
+    void startCalibration(int calibrationType) override final{};
 };
 
 const char * getIMUNameByType(int imuType);

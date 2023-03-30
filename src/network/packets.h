@@ -25,6 +25,7 @@
 #define SLIMEVR_PACKETS_H_
 
 #include "sensors/sensor.h"
+#include "Haptics/Haptics.h"
 
 #define PACKET_HEARTBEAT 0
 //#define PACKET_ROTATION 1 // Deprecated
@@ -48,25 +49,32 @@
 #define PACKET_SIGNAL_STRENGTH 19
 #define PACKET_TEMPERATURE 20
 
-#define PACKET_INSPECTION 105 // 0x69
-
 #define PACKET_RECEIVE_HEARTBEAT 1
 #define PACKET_RECEIVE_VIBRATE 2
 #define PACKET_RECEIVE_HANDSHAKE 3
 #define PACKET_RECEIVE_COMMAND 4
 
-#define PACKET_INSPECTION_PACKETTYPE_RAW_IMU_DATA 1
-#define PACKET_INSPECTION_PACKETTYPE_FUSED_IMU_DATA 2
-#define PACKET_INSPECTION_PACKETTYPE_CORRECTION_DATA 3
-#define PACKET_INSPECTION_DATATYPE_INT 1
-#define PACKET_INSPECTION_DATATYPE_FLOAT 2
+#define PACKET_OCTOSLIME_HAPTICS_INFO 0x70
+#define PACKET_OCTOSLIME_HAPTICS_RECIEVE_INFO 0x71
+#define PACKET_OCTOSLIME_HAPTICS_HANDSHAKE 0x72
+#define PACKET_OCTOSLIME_HAPTICS_RECEIVE_HANDSHAKE 0x73
+#define PACKET_OCTOSLIME_HAPTICS_SET 0x74
+#define PACKET_OCTOSLIME_HAPTICS_RECEIVE_SET 0x75
+#define PACKET_OCTOSLIME_HAPTICS_HEARTBEAT 0x76
+#define PACKET_OCTOSLIME_HAPTICS_RECEIVE_HEARTBEAT 0x77
+
 
 namespace Network {
     // PACKET_HEARTBEAT 0
     void sendHeartbeat();
-
+    
+    // PACKET_HEARTBEAT 0
+    void sendHapticHeartbeat();
+    
     // PACKET_HANDSHAKE 3
     void sendHandshake();
+
+    void sendHapticsHandshake();
 
     // PACKET_ACCEL 4
     void sendAccel(float* vector, uint8_t sensorId);
@@ -102,14 +110,7 @@ namespace Network {
     // PACKET_TEMPERATURE 20
     void sendTemperature(float temperature, uint8_t sensorId);
 
-#if ENABLE_INSPECTION
-    void sendInspectionRawIMUData(uint8_t sensorId, int16_t rX, int16_t rY, int16_t rZ, uint8_t rA, int16_t aX, int16_t aY, int16_t aZ, uint8_t aA, int16_t mX, int16_t mY, int16_t mZ, uint8_t mA);
-    void sendInspectionRawIMUData(uint8_t sensorId, float rX, float rY, float rZ, uint8_t rA, float aX, float aY, float aZ, uint8_t aA, float mX, float mY, float mZ, uint8_t mA);
-
-    void sendInspectionFusedIMUData(uint8_t sensorId, Quat quaternion);
-
-    void sendInspectionCorrectionData(uint8_t sensorId, Quat quaternion);
-#endif
+    void sendHapticsInfo(uint8_t MuxID,uint8_t ControlerID, uint8_t DeviceTypeID);
 }
 
 namespace DataTransfer {
@@ -125,7 +126,6 @@ namespace DataTransfer {
     void sendBytes(const uint8_t * c, size_t length);
     void sendShortString(const char * str);
     void sendLongString(const char * str);
-
     int getWriteError();
 }
 
