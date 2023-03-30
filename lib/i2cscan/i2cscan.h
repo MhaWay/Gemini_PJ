@@ -5,13 +5,17 @@
 #include <Wire.h>
 
 namespace I2CSCAN {
+    struct DeviceParams
+    {
+       uint8_t DeviceID;
+       uint8_t DeviceAddress;
+    };
+    
     void scani2cports();
     bool checkI2C(uint8_t i, uint8_t j);
     bool isI2CExist(uint8_t addr);
-    uint8_t pickDevice(uint8_t addr1, uint8_t addr2, bool scanIfNotFound);
+    DeviceParams pickDevice(uint8_t addr1);
     int clearBus(uint8_t SDA, uint8_t SCL);
-    boolean inArray(uint8_t value, uint8_t* arr, size_t arrSize);
-    std::vector<uint8_t> scanI2CAddresses();
 }
 
 #endif // _I2CSCAN_H_

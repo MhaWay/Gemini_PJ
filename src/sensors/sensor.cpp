@@ -25,26 +25,24 @@
 #include <i2cscan.h>
 #include "calibration.h"
 
+
 uint8_t Sensor::getSensorState() {
     return isWorking() ? SensorStatus::SENSOR_OK : SensorStatus::SENSOR_OFFLINE;
 }
 
 void Sensor::sendData() {
-    if(newData) {
+    if(newData) 
+    {
         newData = false;
         Network::sendRotationData(&quaternion, DATA_TYPE_NORMAL, calibrationAccuracy, sensorId);
-
-#if SEND_ACCELERATION
-        {
-            Network::sendAccel(acceleration, sensorId);
-        }
-#endif
-
-#ifdef DEBUG_SENSOR
-        m_Logger.trace("Quaternion: %f, %f, %f, %f", UNPACK_QUATERNION(quaternion));
-#endif
     }
 }
+
+
+void Sensor::Int_Fired() 
+{
+}
+
 
 const char * getIMUNameByType(int imuType) {
     switch(imuType) {
@@ -62,10 +60,6 @@ const char * getIMUNameByType(int imuType) {
             return "MPU6050";
         case IMU_BNO086:
             return "BNO086";
-        case IMU_BMI160:
-            return "BMI160";
-        case IMU_ICM20948:
-            return "ICM20948";
     }
     return "Unknown";
 }
