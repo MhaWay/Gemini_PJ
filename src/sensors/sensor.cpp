@@ -30,13 +30,44 @@ uint8_t Sensor::getSensorState() {
     return isWorking() ? SensorStatus::SENSOR_OK : SensorStatus::SENSOR_OFFLINE;
 }
 
-void Sensor::sendData() {
-    if(newData) 
-    {
-        newData = false;
-        Network::sendRotationData(&quaternion, DATA_TYPE_NORMAL, calibrationAccuracy, sensorId);
+void Sensor::sendData()
+{
+    // Inviamo i dati attraverso l'oggetto udpClient corretto per ogni sensore
+    if (this->sensorId == 1) {
+        this->udpClient1.beginPacket(this->serverIP, this->serverPort);
+        this->udpClient1.write(this->buffer, this->bufferLength);
+        this->udpClient1.endPacket();
+    } else if (this->sensorId == 2) {
+        this->udpClient2.beginPacket(this->serverIP, this->serverPort);
+        this->udpClient2.write(this->buffer, this->bufferLength);
+        this->udpClient2.endPacket();
+    } else if (this->sensorId == 3) {
+        this->udpClient3.beginPacket(this->serverIP, this->serverPort);
+        this->udpClient3.write(this->buffer, this->bufferLength);
+        this->udpClient3.endPacket();
+    } else if (this->sensorId == 4) {
+        this->udpClient4.beginPacket(this->serverIP, this->serverPort);
+        this->udpClient4.write(this->buffer, this->bufferLength);
+        this->udpClient4.endPacket();
+    } else if (this->sensorId == 5) {
+        this->udpClient5.beginPacket(this->serverIP, this->serverPort);
+        this->udpClient5.write(this->buffer, this->bufferLength);
+        this->udpClient5.endPacket();
+    } else if (this->sensorId == 6) {
+        this->udpClient6.beginPacket(this->serverIP, this->serverPort);
+        this->udpClient6.write(this->buffer, this->bufferLength);
+        this->udpClient6.endPacket();
+    } else if (this->sensorId == 7) {
+        this->udpClient7.beginPacket(this->serverIP, this->serverPort);
+        this->udpClient7.write(this->buffer, this->bufferLength);
+        this->udpClient7.endPacket();
+    } else if (this->sensorId == 8) {
+        this->udpClient8.beginPacket(this->serverIP, this->serverPort);
+        this->udpClient8.write(this->buffer, this->bufferLength);
+        this->udpClient8.endPacket();
     }
 }
+
 
 
 void Sensor::Int_Fired() 
