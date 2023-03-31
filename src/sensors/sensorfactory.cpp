@@ -94,15 +94,16 @@ void SensorFactory::create(int imuIndex)
             }
             else
             {
-
-                this->IMUs[imuIndex + (BankCount * IMUCount)] = new EmptySensor();
-                this->IMUs[imuIndex + (BankCount * IMUCount)]->Connected = false;
-                Serial.println("Nothing Found");
+                // Do nothing
             }
             break;
         }
+        
+        // Create a new Sensor object for the current IMU
+        this->Sensors[imuIndex + (BankCount * IMUCount)] = new Sensor(imuIndex + (BankCount * IMUCount) + 1);
     }
 }
+
 
 
 void SensorFactory::init(int imuIndex)
@@ -153,21 +154,13 @@ void SensorFactory::motionLoop(int index) {
     }
 }
 
-void SensorFactory::sendData(int imuIndex)
-{
-    if (imuIndex >= 0 && imuIndex < IMUCount * 2) {
-        uint8_t IMUID = imuIndex;
-        if (IMUs[IMUID]->Connected && IMUs[IMUID]->isWorking())
-        {
-            if (IMUs[IMUID]->getSensorState() == SENSOR_OK && IMUs[IMUID]->newData)
-            {
-                SetIMU(imuIndex % IMUCount);
-                IMUs[IMUID]->sendData();
-            }
+void SensorFactory::sendData() {
+    for (int i = 0; i < MAX_SENSORS; i++) {
+        if (IMUs[i]->Connected) {
+            IMUs[i]->SendData();
         }
     }
 }
-
 
 void SensorFactory::startCalibration(int sensorId, int calibrationType)
 {
