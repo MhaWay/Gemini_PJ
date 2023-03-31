@@ -34,11 +34,11 @@ class SensorFactory
 public:
     SensorFactory();
     ~SensorFactory();
-    void create();
-    void init();
+    void create(int imuIndex);
+    void init(int imuIndex);
     void motionSetup();
-    void motionLoop();
-    void sendData();
+    void motionLoop(int imuIndex);
+    void sendData(int imuIndex);
     void startCalibration(int sensorId, int calibrationType);
     void SetIMU(uint8_t bus);
     void IMU_Int_Triggered(uint8_t IMU_ID);

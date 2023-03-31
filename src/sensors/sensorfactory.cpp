@@ -56,89 +56,77 @@ void SensorFactory::SetIMU(uint8_t bus)
     Wire.endTransmission();
 }
 
-void SensorFactory::create()
+void SensorFactory::create(int imuIndex)
 {
     Serial.println("Starting Bus Scan");
 
     for (int BankCount = 0; BankCount < 2; BankCount++)
     {
+        this->SetIMU(imuIndex);
+        I2CSCAN::DeviceParams DeviceParams = I2CSCAN::pickDevice(BankCount);
 
-        for (int SensorCount = 0; SensorCount < IMUCount; SensorCount++)
+        switch (DeviceParams.DeviceID)
         {
-            this->SetIMU(SensorCount);
-            I2CSCAN::DeviceParams DeviceParams = I2CSCAN::pickDevice(BankCount);
+        case MPU6050_t:
+            this->IMUs[imuIndex + (BankCount * IMUCount)] = new MPU6050Sensor(DeviceParams.DeviceAddress);
+            this->IMUs[imuIndex + (BankCount * IMUCount)]->Connected = true;
+            Serial.println("Found MPU6050");
+            break;
 
-            switch (DeviceParams.DeviceID)
+        case ICM_20948_t:
+            this->IMUs[imuIndex + (BankCount * IMUCount)] = new ICM20948Sensor(DeviceParams.DeviceAddress);
+            this->IMUs[imuIndex + (BankCount * IMUCount)]->Connected = true;
+            Serial.println("Found ICM20948");
+            break;
+
+        case BNO_080_t:
+            this->IMUs[imuIndex + (BankCount * IMUCount)] = new BNO080Sensor(DeviceParams.DeviceAddress);
+            this->IMUs[imuIndex + (BankCount * IMUCount)]->Connected = true;
+            Serial.println("Found BNO080");
+            break;
+
+        default:
+            if (DeviceParams.DeviceAddress == 0x4A || DeviceParams.DeviceAddress == 0x4B) // fallback for the BNO IMU
             {
-            case MPU6050_t:
-                this->IMUs[SensorCount + (BankCount * IMUCount)] = new MPU6050Sensor(DeviceParams.DeviceAddress);
-                this->IMUs[SensorCount + (BankCount * IMUCount)]->Connected = true;
-                Serial.println("Found MPU6050");
-                break;
-
-            case ICM_20948_t:
-                this->IMUs[SensorCount + (BankCount * IMUCount)] = new ICM20948Sensor(DeviceParams.DeviceAddress);
-                this->IMUs[SensorCount + (BankCount * IMUCount)]->Connected = true;
-                Serial.println("Found ICM20948");
-                break;
-
-            case BNO_080_t:
-                this->IMUs[SensorCount + (BankCount * IMUCount)] = new BNO080Sensor(DeviceParams.DeviceAddress);
-                this->IMUs[SensorCount + (BankCount * IMUCount)]->Connected = true;
+                this->IMUs[imuIndex + (BankCount * IMUCount)] = new BNO080Sensor(DeviceParams.DeviceAddress);
+                this->IMUs[imuIndex + (BankCount * IMUCount)]->Connected = true;
                 Serial.println("Found BNO080");
-                break;
-
-            default:
-                if (DeviceParams.DeviceAddress == 0x4A || DeviceParams.DeviceAddress == 0x4B) // fallback for the BNO IMU
-                {
-                    this->IMUs[SensorCount + (BankCount * IMUCount)] = new BNO080Sensor(DeviceParams.DeviceAddress);
-                    this->IMUs[SensorCount + (BankCount * IMUCount)]->Connected = true;
-                    Serial.println("Found BNO080");
-                }
-                else
-                {
-
-                    this->IMUs[SensorCount + (BankCount * IMUCount)] = new EmptySensor();
-                    this->IMUs[SensorCount + (BankCount * IMUCount)]->Connected = false;
-                    Serial.println("Nothing Found");
-                }
-                break;
             }
+            else
+            {
+
+                this->IMUs[imuIndex + (BankCount * IMUCount)] = new EmptySensor();
+                this->IMUs[imuIndex + (BankCount * IMUCount)]->Connected = false;
+                Serial.println("Nothing Found");
+            }
+            break;
         }
     }
 }
 
-void SensorFactory::init()
+
+void SensorFactory::init(int imuIndex)
 {
-    Serial.println("Setting up IMU Parameters");
+    Serial.print("Setting up IMU Parameters for IMU ID: ");
+    Serial.println(imuIndex);
 
-    for (int BankCount = 0; BankCount < 2; BankCount++)
+    int bankCount = imuIndex / IMUCount;
+    int sensorCount = imuIndex % IMUCount;
+
+    SetIMU(sensorCount);
+    if (IMUs[imuIndex]->Connected)
     {
-
-        for (int SensorCount = 0; SensorCount < IMUCount; SensorCount++)
-        {
-
-            uint8_t IMUID = SensorCount + (BankCount * IMUCount);
-            SetIMU(SensorCount);
-            Serial.print("Setting IMU ID : ");
-            Serial.print(IMUID);
-            if (IMUs[IMUID]->Connected)
-            {
-                IMUs[IMUID]->setupSensor(SensorCount + (BankCount * IMUCount));
-                Serial.println(" Complete");
-            }
-            else
-            {
-                Serial.println(" No Device");
-            }
-        }
+        IMUs[imuIndex]->setupSensor(imuIndex);
+        Serial.println("Setup complete");
+    }
+    else
+    {
+        Serial.println("No device");
     }
 }
 
 void SensorFactory::motionSetup()
 {
-    Serial.println("Setting up Motion Engines");
-
     for (int BankCount = 0; BankCount < 2; BankCount++)
     {
         for (int SensorCount = 0; SensorCount < IMUCount; SensorCount++)
@@ -160,47 +148,35 @@ void SensorFactory::motionSetup()
                 Serial.println(" No Device");
                 UI::SetIMUStatus(IMUID, false);
             }
+            delay(50);
         }
     }
 }
 
-void SensorFactory::motionLoop()
+void SensorFactory::motionLoop(int index) {
+    this->SetIMU(index);
+    if (IMUs[index]->Connected && IMUs[index]->isWorking()) {
+        if (IMUs[index]->getSensorState() == SENSOR_OK) {
+            IMUs[index]->motionLoop();
+        }
+    }
+}
+
+void SensorFactory::sendData(int imuIndex)
 {
-    for (int BankCount = 0; BankCount < 2; BankCount++)
-    {
-        for (int SensorCount = 0; SensorCount < IMUCount; SensorCount++)
+    if (imuIndex >= 0 && imuIndex < IMUCount * 2) {
+        uint8_t IMUID = imuIndex;
+        if (IMUs[IMUID]->Connected && IMUs[IMUID]->isWorking())
         {
-            this->SetIMU(SensorCount);
-            uint8_t IMUID = SensorCount + (BankCount * IMUCount);
-            if (IMUs[IMUID]->Connected && IMUs[IMUID]->isWorking())
+            if (IMUs[IMUID]->getSensorState() == SENSOR_OK && IMUs[IMUID]->newData)
             {
-                if (IMUs[IMUID]->getSensorState() == SENSOR_OK)
-                {
-                    IMUs[IMUID]->motionLoop();
-                }
+                SetIMU(imuIndex % IMUCount);
+                IMUs[IMUID]->sendData();
             }
         }
     }
 }
 
-void SensorFactory::sendData()
-{
-    for (int BankCount = 0; BankCount < 2; BankCount++)
-    {
-        for (int SensorCount = 0; SensorCount < IMUCount; SensorCount++)
-        {
-            uint8_t IMUID = SensorCount + (BankCount * IMUCount);
-            if (IMUs[IMUID]->Connected && IMUs[IMUID]->isWorking())
-            {
-                if (IMUs[IMUID]->getSensorState() == SENSOR_OK && IMUs[IMUID]->newData)
-                {
-                    this->SetIMU(SensorCount);
-                    IMUs[IMUID]->sendData();
-                }
-            }
-        }
-    }
-}
 
 void SensorFactory::startCalibration(int sensorId, int calibrationType)
 {

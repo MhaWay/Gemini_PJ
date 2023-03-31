@@ -131,9 +131,13 @@ void setup()
 
     delay(500);
 
-    sensors.create();
-    sensors.init();
+    for (int i = 0; i < 8; i++) {
+        sensors.create(i); // Inizializza ogni singolo sensore
+        sensors.init(i);
+        delay(1);
+    }
     sensors.motionSetup();
+
 
     Network::setUp();
     battery.Setup();
@@ -157,10 +161,11 @@ void loop()
 
     SerialCommands::update();
     Network::update(sensors.IMUs);
-    sensors.motionLoop();
-    sensors.sendData();
+    for (int i = 0; i < 8; i++) {
+        sensors.motionLoop(i);
+        sensors.sendData(i);
+    }
     battery.Loop();
-
 
     // if (INT_Triggered_Bank_A || INT_Triggered_Bank_B)
     // {
