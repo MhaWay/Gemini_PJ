@@ -25,9 +25,11 @@
 #include "packets.h"
 
 #define TIMEOUT 3000UL
+#define MAX_SENSORS 8
 
 WiFiUDP Udp;
 WiFiUDP Haptics_Udp;
+WiFiUDP udpClients[MAX_SENSORS];
 
 unsigned char incomingPacket[128]; // buffer for incoming packets
 uint64_t packetNumber = 0;
@@ -75,6 +77,40 @@ unsigned char *convert_to_chars(T src, unsigned char *target)
         target[i] = un.c[sizeof(T) - i - 1];
     }
     return target;
+}
+
+void UDPClient::init() {
+  // Look for SlimeVR server
+  Serial.println("Looking for SlimeVR server...");
+  while (true) {
+    // Start broadcasting on all interfaces
+    IPAddress broadcastIP(255, 255, 255, 255);
+    int serverPort = port;
+    udp.beginPacket(broadcastIP, serverPort);
+    // Send handshake packet
+    DataTransfer::sendPacketType(PACKET_HANDSHAKE);
+    DataTransfer::sendLong(0); // Packet number is always 0 for handshake
+    if (udp.endPacket()) {
+      Serial.println("Handshake sent, waiting for response...");
+      delay(5000); // Wait 5 seconds for response
+      int packetSize = udp.parsePacket();
+      if (packetSize) {
+        Serial.println("SlimeVR server found!");
+        IPAddress serverIP = udp.remoteIP();
+        for (int i = 0; i < MAX_SENSORS; i++) {
+          int serverPort = port + i; // Different port for each sensor
+          udpClients[i].beginPacket(serverIP, serverPort);
+        }
+        break; // Found server, break out of loop
+      }
+      else {
+        Serial.println("No response, trying again...");
+      }
+    }
+    else {
+      Serial.println("Handshake failed to send, trying again...");
+    }
+  }
 }
 
 template <typename T>

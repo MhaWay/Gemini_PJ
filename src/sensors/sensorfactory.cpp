@@ -125,33 +125,24 @@ void SensorFactory::init(int imuIndex)
     }
 }
 
-void SensorFactory::motionSetup()
+void SensorFactory::motionSetup(int imuIndex)
 {
-    for (int BankCount = 0; BankCount < 2; BankCount++)
+    Serial.print("Setting up Motion Engine for IMU ID: ");
+    Serial.println(imuIndex);
+    
+    if (IMUs[imuIndex]->Connected)
     {
-        for (int SensorCount = 0; SensorCount < IMUCount; SensorCount++)
-        {
-
-            uint8_t IMUID = SensorCount + (BankCount * IMUCount);
-            SetIMU(SensorCount);
-            Serial.print("Setting IMU ID : ");
-            Serial.print(IMUID);
-
-            if (IMUs[IMUID]->Connected)
-            {
-                IMUs[IMUID]->motionSetup();
-                UI::SetIMUStatus(IMUID, IMUs[IMUID]->isWorking() ? true : false);
-                Serial.println(" Complete");
-            }
-            else
-            {
-                Serial.println(" No Device");
-                UI::SetIMUStatus(IMUID, false);
-            }
-            delay(50);
-        }
+        IMUs[imuIndex]->motionSetup();
+        UI::SetIMUStatus(imuIndex, IMUs[imuIndex]->isWorking() ? true : false);
+        Serial.println("Complete");
+    }
+    else
+    {
+        Serial.println("No Device");
+        UI::SetIMUStatus(imuIndex, false);
     }
 }
+
 
 void SensorFactory::motionLoop(int index) {
     this->SetIMU(index);

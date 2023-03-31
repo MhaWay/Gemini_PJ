@@ -31,6 +31,18 @@
 #include "wifihandler.h"
 #include "globals.h"
 
+#define MAX_SENSORS 8
+
+class UDPClient {
+  private:
+    WiFiUDP udp;
+    WiFiUDP udpClients[MAX_SENSORS];
+
+  public:
+    void init();
+    void sendPacket(int id, const char* data, size_t len);
+};
+
 namespace ServerConnection
 {
     void Slimeconnect();

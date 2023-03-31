@@ -36,7 +36,7 @@ public:
     ~SensorFactory();
     void create(int imuIndex);
     void init(int imuIndex);
-    void motionSetup();
+    void motionSetup(int imuIndex);
     void motionLoop(int imuIndex);
     void sendData(int imuIndex);
     void startCalibration(int sensorId, int calibrationType);

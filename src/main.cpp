@@ -131,12 +131,32 @@ void setup()
 
     delay(500);
 
-    for (int i = 0; i < 8; i++) {
-        sensors.create(i); // Inizializza ogni singolo sensore
-        sensors.init(i);
-        delay(1);
-    }
-    sensors.motionSetup();
+    sensors.create(0);
+    sensors.init(0);
+    sensors.motionSetup(0);
+    sensors.create(1);
+    sensors.init(1);
+    sensors.motionSetup(1);
+    sensors.create(2);
+    sensors.init(2);
+    sensors.motionSetup(2);
+    sensors.create(3);
+    sensors.init(3);
+    sensors.motionSetup(3);
+    sensors.create(4);
+    sensors.init(4);
+    sensors.motionSetup(4);
+    sensors.create(5);
+    sensors.init(5);
+    sensors.motionSetup(5);
+    sensors.create(6);
+    sensors.init(6);
+    sensors.motionSetup(6);
+    sensors.create(7);
+    sensors.init(7);
+    sensors.motionSetup(7);
+
+    
 
 
     Network::setUp();
@@ -155,16 +175,37 @@ void setup()
     Serial.println("Startup Complete , Entering Loop");
 
 }
-
+int sensordelaybetween = 1;
 void loop()
 {
 
     SerialCommands::update();
     Network::update(sensors.IMUs);
-    for (int i = 0; i < 8; i++) {
-        sensors.motionLoop(i);
-        sensors.sendData(i);
-    }
+        sensors.motionLoop(0);
+        sensors.sendData(0);
+    delay(sensordelaybetween);
+        sensors.motionLoop(1);
+        sensors.sendData(1);
+    delay(sensordelaybetween);
+        sensors.motionLoop(2);
+        sensors.sendData(2);
+    delay(sensordelaybetween);
+        sensors.motionLoop(3);
+        sensors.sendData(3);
+    delay(sensordelaybetween);
+        sensors.motionLoop(4);
+        sensors.sendData(4);
+    delay(sensordelaybetween);
+        sensors.motionLoop(5);
+        sensors.sendData(5);
+    delay(sensordelaybetween);
+        sensors.motionLoop(6);
+        sensors.sendData(6);
+    delay(sensordelaybetween);
+        sensors.motionLoop(7);
+        sensors.sendData(7);
+    delay(sensordelaybetween);
+    
     battery.Loop();
 
     // if (INT_Triggered_Bank_A || INT_Triggered_Bank_B)
